@@ -7,7 +7,7 @@ from datetime import datetime, date
 import os
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'shanvi-secret-123')                    # secure random secret key
+app.secret_key = os.environ.get('SECRET_KEY', 'shanvi-secret-123456')                    # secure random secret key
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///shanvi.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # app.config['WTF_CSRF_ENABLED'] = False            # ← only enable during heavy local debugging
