@@ -15,7 +15,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'shanvi-secret-123456')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'shanvi.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['WTF_CSRF_ENABLED'] = False
-app.config['PROPAGATE_EXCEPTIONS'] = True   # Better error messages
+app.config['PROPAGATE_EXCEPTIONS'] = True   # Better error visibility
 
 db = SQLAlchemy(app)
 
@@ -39,20 +39,20 @@ class BookingForm(FlaskForm):
         ('Wedding', 'Wedding'), ('Birthday', 'Birthday'),
         ('Engagement', 'Engagement'), ('Corporate', 'Corporate'), ('Other', 'Other')
     ], validators=[DataRequired()])
-    event_date = DateField('Event Date', validators=[DataRequired()])   # format removed to prevent crash
+    event_date = DateField('Event Date', validators=[DataRequired()])   # format removed to avoid crash
     guests = IntegerField('Number of Guests', validators=[DataRequired(), NumberRange(min=1, max=3000)])
     message = TextAreaField('Message / Special Requirements')
 
     def validate_event_date(self, field):
-        if field.data < date.today():
+        if field.data and field.data < date.today():
             raise ValidationError("Cannot select a past date")
 
 class AdminLoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
 
-# ========================= TEMPLATES =========================
-BASE = """ 
+# ========================= BASE TEMPLATE =========================
+BASE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -76,6 +76,7 @@ BASE = """
   </style>
 </head>
 <body class="bg-light">
+
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
   <div class="container">
     <a class="navbar-brand fw-bold text-gold fs-3" href="/">Hotel Shanvi</a>
@@ -134,7 +135,7 @@ BASE = """
 </html>
 """
 
-# Page Contents
+# ========================= PAGE CONTENTS =========================
 HOME = """
 <div class="hero">
   <div class="container">
@@ -324,7 +325,7 @@ def book():
     form = BookingForm()
     
     if form.validate_on_submit():
-        print("✅ FORM VALIDATED SUCCESSFULLY")
+        print("✅ FORM VALID")
         existing = Booking.query.filter_by(event_date=form.event_date.data)\
                                  .filter(Booking.status.in_(['Pending', 'Confirmed']))\
                                  .first()
@@ -345,11 +346,12 @@ def book():
                 flash("Booking request submitted successfully! We will contact you soon.", "success")
                 return redirect(url_for('book'))
             except Exception as e:
-                print("❌ DATABASE ERROR:", e)
+                print("❌ DB ERROR:", str(e))
                 db.session.rollback()
-                flash("Database error occurred. Please try again.", "danger")
+                flash("Something went wrong. Please try again.", "danger")
     else:
-        print("❌ FORM ERRORS:", form.errors)
+        if request.method == 'POST':
+            print("❌ FORM ERRORS:", form.errors)
 
     inner = render_template_string(BOOK, form=form)
     return render_template_string(BASE, content=inner, title="Book Now")
@@ -362,13 +364,14 @@ def check_date():
         return jsonify({'available': True})
     try:
         dt = datetime.strptime(d, '%Y-%m-%d').date()
-        taken = Booking.query.filter_by(event_date=dt).filter(Booking.status.in_(['Pending', 'Confirmed'])).first()
+        taken = Booking.query.filter_by(event_date=dt)\
+                             .filter(Booking.status.in_(['Pending', 'Confirmed']))\
+                             .first()
         return jsonify({'available': taken is None})
     except:
         return jsonify({'available': True})
 
 
-# Admin Routes (unchanged)
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     form = AdminLoginForm()
@@ -377,7 +380,8 @@ def admin_login():
             session['admin'] = True
             flash("Logged in successfully", "success")
             return redirect(url_for('admin_dashboard'))
-        flash("Incorrect username or password", "danger")
+        else:
+            flash("Incorrect username or password", "danger")
     inner = render_template_string(ADMIN_LOGIN, form=form)
     return render_template_string(BASE, content=inner, title="Admin Login")
 
@@ -401,33 +405,36 @@ def admin_dashboard():
 
 @app.route('/admin/confirm/<int:booking_id>', methods=['POST'])
 def confirm_booking(booking_id):
-    if 'admin' not in session: return redirect(url_for('admin_login'))
+    if 'admin' not in session:
+        return redirect(url_for('admin_login'))
     booking = Booking.query.get_or_404(booking_id)
     if booking.status == 'Pending':
         booking.status = 'Confirmed'
         db.session.commit()
-        flash(f"Booking #{booking_id} confirmed", "success")
+        flash(f"Booking #{booking_id} has been confirmed", "success")
     return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/admin/cancel/<int:booking_id>', methods=['POST'])
 def cancel_booking(booking_id):
-    if 'admin' not in session: return redirect(url_for('admin_login'))
+    if 'admin' not in session:
+        return redirect(url_for('admin_login'))
     booking = Booking.query.get_or_404(booking_id)
     if booking.status == 'Pending':
         booking.status = 'Cancelled'
         db.session.commit()
-        flash(f"Booking #{booking_id} cancelled", "warning")
+        flash(f"Booking #{booking_id} has been cancelled", "warning")
     return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/admin/delete/<int:booking_id>', methods=['POST'])
 def delete_booking(booking_id):
-    if 'admin' not in session: return redirect(url_for('admin_login'))
+    if 'admin' not in session:
+        return redirect(url_for('admin_login'))
     booking = Booking.query.get_or_404(booking_id)
     db.session.delete(booking)
     db.session.commit()
-    flash(f"Booking #{booking_id} deleted", "danger")
+    flash(f"Booking #{booking_id} has been deleted", "danger")
     return redirect(url_for('admin_dashboard'))
 
 
@@ -435,8 +442,11 @@ def delete_booking(booking_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    print("🚀 Hotel Shanvi site is running...")
-    print("📍 Admin Login: http://127.0.0.1:5000/admin/login")
-    print("   Username: admin")
-    print("   Password: admin123")
+    print("="*60)
+    print("🚀 Hotel Shanvi & Marriage Hall is running!")
+    print("📍 Visit: http://127.0.0.1:5000")
+    print("🔑 Admin Login: http://127.0.0.1:5000/admin/login")
+    print("   Username : admin")
+    print("   Password : admin123")
+    print("="*60)
     app.run(debug=True, host='0.0.0.0', port=5000)
