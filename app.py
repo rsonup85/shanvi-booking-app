@@ -6,9 +6,7 @@ from wtforms.validators import DataRequired, Length, NumberRange, ValidationErro
 from datetime import datetime, date
 import os
 
-# ────────────────────────────────────────────────
-# APP INITIALIZATION (MOST IMPORTANT FIX)
-# ────────────────────────────────────────────────
+# ========================= APP SETUP =========================
 app = Flask(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -16,13 +14,12 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 app.secret_key = os.environ.get('SECRET_KEY', 'shanvi-secret-123456')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'shanvi.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['WTF_CSRF_ENABLED'] = False   # ← only for local testing
+app.config['WTF_CSRF_ENABLED'] = False
+app.config['PROPAGATE_EXCEPTIONS'] = True   # Better error messages
 
 db = SQLAlchemy(app)
 
-# ────────────────────────────────────────────────
-# MODELS
-# ────────────────────────────────────────────────
+# ========================= MODELS =========================
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -34,9 +31,7 @@ class Booking(db.Model):
     status = db.Column(db.String(20), default='Pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ────────────────────────────────────────────────
-# FORMS
-# ────────────────────────────────────────────────
+# ========================= FORMS =========================
 class BookingForm(FlaskForm):
     name = StringField('Full Name', validators=[DataRequired(), Length(max=100)])
     phone = StringField('Phone Number', validators=[DataRequired(), Length(min=10, max=20)])
@@ -44,7 +39,7 @@ class BookingForm(FlaskForm):
         ('Wedding', 'Wedding'), ('Birthday', 'Birthday'),
         ('Engagement', 'Engagement'), ('Corporate', 'Corporate'), ('Other', 'Other')
     ], validators=[DataRequired()])
-    event_date = DateField('Event Date', format='%Y-%m-%d', validators=[DataRequired()])
+    event_date = DateField('Event Date', validators=[DataRequired()])   # format removed to prevent crash
     guests = IntegerField('Number of Guests', validators=[DataRequired(), NumberRange(min=1, max=3000)])
     message = TextAreaField('Message / Special Requirements')
 
@@ -56,10 +51,8 @@ class AdminLoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
 
-# ────────────────────────────────────────────────
-# BASE TEMPLATE (same as before)
-# ────────────────────────────────────────────────
-BASE = """
+# ========================= TEMPLATES =========================
+BASE = """ 
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -76,20 +69,10 @@ BASE = """
     .hero {
         background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
                     url('https://maps.app.goo.gl/DQAAhb1Gkbxz4bsYA') no-repeat center center/cover;
-        min-height: 75vh;
-        color: white;
-        display: flex;
-        align-items: center;
-        text-align: center;
-        }
-    .floating-buttons {
-      position: fixed; bottom: 25px; right: 25px; z-index: 1000;
+        min-height: 75vh; color: white; display: flex; align-items: center; text-align: center;
     }
-    .card-hover:hover {
-      transform: translateY(-6px);
-      box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-      transition: all 0.25s ease;
-    }
+    .floating-buttons { position: fixed; bottom: 25px; right: 25px; z-index: 1000; }
+    .card-hover:hover { transform: translateY(-6px); box-shadow: 0 12px 24px rgba(0,0,0,0.15); transition: all 0.25s ease; }
   </style>
 </head>
 <body class="bg-light">
@@ -141,59 +124,163 @@ BASE = """
 </footer>
 
 <div class="floating-buttons d-flex flex-column gap-3">
-  <a href="tel:09142155803" class="btn btn-danger rounded-circle shadow p-3">
-    <i class="fas fa-phone fa-2x"></i>
-  </a>
-  <a href="https://wa.me/919142155803?text=Hello%2C%20I%20would%20like%20to%20book%20a%20date%20at%20Hotel%20Shanvi" target="_blank"
-     class="btn btn-success rounded-circle shadow p-3">
-    <i class="fab fa-whatsapp fa-2x"></i>
-  </a>
+  <a href="tel:09142155803" class="btn btn-danger rounded-circle shadow p-3"><i class="fas fa-phone fa-2x"></i></a>
+  <a href="https://wa.me/919142155803?text=Hello%2C%20I%20would%20like%20to%20book%20a%20date%20at%20Hotel%20Shanvi" 
+     target="_blank" class="btn btn-success rounded-circle shadow p-3"><i class="fab fa-whatsapp fa-2x"></i></a>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const dateEl = document.getElementById('event_date');
-  if (dateEl) {
-    const msg = document.createElement('div');
-    msg.className = 'mt-2 fw-bold';
-    dateEl.parentElement.appendChild(msg);
-    dateEl.addEventListener('change', async () => {
-      if (!dateEl.value) return;
-      try {
-        const r = await fetch(`/check-date?date=${dateEl.value}`);
-        const data = await r.json();
-        if (!data.available) {
-          msg.innerHTML = '<span class="text-danger">✗ Date already booked</span>';
-          dateEl.classList.add('is-invalid');
-        } else {
-          msg.innerHTML = '<span class="text-success">✓ Available</span>';
-          dateEl.classList.remove('is-invalid');
-        }
-      } catch {
-        msg.innerHTML = '<span class="text-warning">Cannot check availability</span>';
-      }
-    });
-  }
-});
-</script>
 </body>
 </html>
 """
 
-# ────────────────────────────────────────────────
-# PAGE CONTENTS (same as your original)
-# ────────────────────────────────────────────────
-HOME = """ ... (aapka pura HOME content same rakha hai) ... """
-# (Baki sab templates — ABOUT, BOOK, CONTACT, ADMIN_LOGIN, ADMIN_DASHBOARD — aapke original jaise hi hain. 
-#  Space bachane ke liye yahan nahi likh raha, lekin aapke code mein same paste kar dena)
+# Page Contents
+HOME = """
+<div class="hero">
+  <div class="container">
+    <h1 class="display-3 fw-bold mb-4">Hotel Shanvi & Marriage Hall</h1>
+    <p class="lead fs-4 mb-5">Your Premium Wedding & Event Venue in Kargahar</p>
+    <a href="/book" class="btn btn-gold btn-lg px-5 py-3">Book Now</a>
+  </div>
+</div>
+<div class="container py-5">
+  <h2 class="text-center text-gold mb-5">Why Choose Us?</h2>
+  <div class="row g-4 text-center">
+    <div class="col-md-3"><div class="card card-hover"><div class="card-body"><i class="fas fa-home fa-3x text-gold mb-3"></i><h5>Spacious</h5><p>2000+ guests</p></div></div></div>
+    <div class="col-md-3"><div class="card card-hover"><div class="card-body"><i class="fas fa-utensils fa-3x text-gold mb-3"></i><h5>Catering</h5><p>Delicious food</p></div></div></div>
+    <div class="col-md-3"><div class="card card-hover"><div class="card-body"><i class="fas fa-lightbulb fa-3x text-gold mb-3"></i><h5>Decoration</h5><p>Stunning setups</p></div></div></div>
+    <div class="col-md-3"><div class="card card-hover"><div class="card-body"><i class="fas fa-parking fa-3x text-gold mb-3"></i><h5>Parking</h5><p>Ample space</p></div></div></div>
+  </div>
+</div>
+"""
 
-# Note: Aapke code mein HOME, ABOUT, BOOK, CONTACT, ADMIN_LOGIN, ADMIN_DASHBOARD templates same rakh sakte ho. 
-# Sirf upar wala BASE aur routes change hue hain.
+ABOUT = """
+<div class="container py-5">
+  <h1 class="text-gold text-center mb-5">About Us</h1>
+  <div class="row justify-content-center">
+    <div class="col-lg-8 text-center lead">
+      <p>Hotel Shanvi & Marriage Hall is a trusted venue in Kargahar, Bihar for weddings, engagements, birthdays and events.</p>
+      <p>We focus on elegant decoration, tasty catering and warm hospitality to make your celebration memorable.</p>
+    </div>
+  </div>
+</div>
+"""
 
-# ────────────────────────────────────────────────
-# ROUTES
-# ────────────────────────────────────────────────
+BOOK = """
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card shadow-lg">
+        <div class="card-header bg-gold text-dark text-center py-4">
+          <h3 class="mb-0">Book Your Event</h3>
+        </div>
+        <div class="card-body p-5">
+          <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="mb-4">{{ form.name.label(class="form-label fw-bold") }}{{ form.name(class="form-control form-control-lg") }}</div>
+            <div class="mb-4">{{ form.phone.label(class="form-label fw-bold") }}{{ form.phone(class="form-control form-control-lg") }}</div>
+            <div class="mb-4">{{ form.event_type.label(class="form-label fw-bold") }}{{ form.event_type(class="form-select form-select-lg") }}</div>
+            <div class="mb-4">{{ form.event_date.label(class="form-label fw-bold") }}{{ form.event_date(class="form-control form-control-lg", id="event_date") }}</div>
+            <div class="mb-4">{{ form.guests.label(class="form-label fw-bold") }}{{ form.guests(class="form-control form-control-lg") }}</div>
+            <div class="mb-4">{{ form.message.label(class="form-label fw-bold") }}{{ form.message(class="form-control", rows=4) }}</div>
+            <button type="submit" class="btn btn-gold btn-lg w-100 py-3">Submit Request</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+"""
+
+CONTACT = """
+<div class="container py-5">
+  <h1 class="text-gold text-center mb-5">Contact Us</h1>
+  <div class="row g-5 align-items-center">
+    <div class="col-lg-5">
+      <h4 class="text-gold">Hotel Shanvi & Marriage Hall</h4>
+      <p>Kargahar, Bihar 821107</p>
+      <p><i class="fas fa-phone me-2"></i> 09142155803</p>
+      <p><i class="fas fa-clock me-2"></i> Always open for enquiries</p>
+    </div>
+    <div class="col-lg-7">
+      <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d14449.191765849842!2d83.92212479526479!3d25.125616093163163!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x398dc10035766791%3A0x8bef76a1752dd613!2sHOTEL%20SHANVI%20%26%20MARRIAGE%20HALL!5e0!3m2!1sen!2sin!4v1774008658195!5m2!1sen!2sin" width="100%" height="400" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
+    </div>
+  </div>
+</div>
+"""
+
+ADMIN_LOGIN = """
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-5">
+      <div class="card shadow-lg">
+        <div class="card-header bg-dark text-white text-center py-4">
+          <h3 class="mb-0">Admin Panel Login</h3>
+        </div>
+        <div class="card-body p-5">
+          <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="mb-4">{{ form.username.label(class="form-label fw-bold") }}{{ form.username(class="form-control form-control-lg") }}</div>
+            <div class="mb-4">{{ form.password.label(class="form-label fw-bold") }}{{ form.password(class="form-control form-control-lg") }}</div>
+            <button type="submit" class="btn btn-gold btn-lg w-100">Sign In</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+"""
+
+ADMIN_DASHBOARD = """
+<div class="container py-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="text-gold">Admin Dashboard</h1>
+    <a href="/admin/logout" class="btn btn-outline-danger">Logout</a>
+  </div>
+  <div class="card shadow">
+    <div class="card-header bg-dark text-white">
+      <h5 class="mb-0">Bookings</h5>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>ID</th><th>Name</th><th>Phone</th><th>Event</th><th>Date</th><th>Guests</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in bookings %}
+          <tr>
+            <td>{{ b.id }}</td>
+            <td>{{ b.name }}</td>
+            <td>{{ b.phone }}</td>
+            <td>{{ b.event_type }}</td>
+            <td>{{ b.event_date.strftime('%d %b %Y') }}</td>
+            <td>{{ b.guests }}</td>
+            <td><span class="badge bg-{% if b.status=='Confirmed' %}success{% elif b.status=='Cancelled' %}danger{% else %}warning{% endif %}">{{ b.status }}</span></td>
+            <td>
+              <form action="{{ url_for('confirm_booking', booking_id=b.id) }}" method="POST" class="d-inline">
+                <button class="btn btn-sm btn-success" {% if b.status in ['Confirmed','Cancelled'] %}disabled{% endif %}>Confirm</button>
+              </form>
+              <form action="{{ url_for('cancel_booking', booking_id=b.id) }}" method="POST" class="d-inline">
+                <button class="btn btn-sm btn-warning" {% if b.status in ['Confirmed','Cancelled'] %}disabled{% endif %}>Cancel</button>
+              </form>
+              <form action="{{ url_for('delete_booking', booking_id=b.id) }}" method="POST" class="d-inline">
+                <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this booking?')">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-center py-4">No bookings yet</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+"""
+
+# ========================= ROUTES =========================
 @app.route('/')
 def home():
     return render_template_string(BASE, content=HOME, title="Home")
@@ -237,7 +324,7 @@ def book():
     form = BookingForm()
     
     if form.validate_on_submit():
-        print("✅ FORM VALID")   # Debug
+        print("✅ FORM VALIDATED SUCCESSFULLY")
         existing = Booking.query.filter_by(event_date=form.event_date.data)\
                                  .filter(Booking.status.in_(['Pending', 'Confirmed']))\
                                  .first()
@@ -251,18 +338,18 @@ def book():
                     event_type=form.event_type.data,
                     event_date=form.event_date.data,
                     guests=form.guests.data,
-                    message=form.message.data
+                    message=form.message.data or ""
                 )
                 db.session.add(booking)
                 db.session.commit()
                 flash("Booking request submitted successfully! We will contact you soon.", "success")
                 return redirect(url_for('book'))
             except Exception as e:
-                print("❌ DB ERROR:", e)
+                print("❌ DATABASE ERROR:", e)
                 db.session.rollback()
-                flash("There was a database error. Please try again.", "danger")
+                flash("Database error occurred. Please try again.", "danger")
     else:
-        print("❌ FORM ERRORS:", form.errors)   # Important debug
+        print("❌ FORM ERRORS:", form.errors)
 
     inner = render_template_string(BOOK, form=form)
     return render_template_string(BASE, content=inner, title="Book Now")
@@ -275,16 +362,13 @@ def check_date():
         return jsonify({'available': True})
     try:
         dt = datetime.strptime(d, '%Y-%m-%d').date()
-        taken = Booking.query.filter_by(event_date=dt)\
-                             .filter(Booking.status.in_(['Pending', 'Confirmed']))\
-                             .first()
+        taken = Booking.query.filter_by(event_date=dt).filter(Booking.status.in_(['Pending', 'Confirmed'])).first()
         return jsonify({'available': taken is None})
-    except Exception as e:
-        print("Check-date error:", e)
+    except:
         return jsonify({'available': True})
 
 
-# Admin routes (same as before, bas thoda safe rakha)
+# Admin Routes (unchanged)
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     form = AdminLoginForm()
@@ -293,8 +377,7 @@ def admin_login():
             session['admin'] = True
             flash("Logged in successfully", "success")
             return redirect(url_for('admin_dashboard'))
-        else:
-            flash("Incorrect username or password", "danger")
+        flash("Incorrect username or password", "danger")
     inner = render_template_string(ADMIN_LOGIN, form=form)
     return render_template_string(BASE, content=inner, title="Admin Login")
 
@@ -318,48 +401,42 @@ def admin_dashboard():
 
 @app.route('/admin/confirm/<int:booking_id>', methods=['POST'])
 def confirm_booking(booking_id):
-    if 'admin' not in session:
-        return redirect(url_for('admin_login'))
+    if 'admin' not in session: return redirect(url_for('admin_login'))
     booking = Booking.query.get_or_404(booking_id)
     if booking.status == 'Pending':
         booking.status = 'Confirmed'
         db.session.commit()
-        flash(f"Booking #{booking_id} has been confirmed", "success")
+        flash(f"Booking #{booking_id} confirmed", "success")
     return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/admin/cancel/<int:booking_id>', methods=['POST'])
 def cancel_booking(booking_id):
-    if 'admin' not in session:
-        return redirect(url_for('admin_login'))
+    if 'admin' not in session: return redirect(url_for('admin_login'))
     booking = Booking.query.get_or_404(booking_id)
     if booking.status == 'Pending':
         booking.status = 'Cancelled'
         db.session.commit()
-        flash(f"Booking #{booking_id} has been cancelled", "warning")
+        flash(f"Booking #{booking_id} cancelled", "warning")
     return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/admin/delete/<int:booking_id>', methods=['POST'])
 def delete_booking(booking_id):
-    if 'admin' not in session:
-        return redirect(url_for('admin_login'))
+    if 'admin' not in session: return redirect(url_for('admin_login'))
     booking = Booking.query.get_or_404(booking_id)
     db.session.delete(booking)
     db.session.commit()
-    flash(f"Booking #{booking_id} has been deleted", "danger")
+    flash(f"Booking #{booking_id} deleted", "danger")
     return redirect(url_for('admin_dashboard'))
 
 
-# ────────────────────────────────────────────────
-# START
-# ────────────────────────────────────────────────
+# ========================= START =========================
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    print("🚀 Hotel Shanvi site starting...")
-    print("Admin login → http://127.0.0.1:5000/admin/login")
+    print("🚀 Hotel Shanvi site is running...")
+    print("📍 Admin Login: http://127.0.0.1:5000/admin/login")
     print("   Username: admin")
     print("   Password: admin123")
-    print("Booking page → http://127.0.0.1:5000/book")
     app.run(debug=True, host='0.0.0.0', port=5000)
