@@ -5,6 +5,9 @@ from wtforms import StringField, DateField, IntegerField, TextAreaField, SelectF
 from wtforms.validators import DataRequired, Length, NumberRange, ValidationError
 from datetime import datetime, date
 import os
+basedir = os.path.abspath(os.path.dirname(__file__))
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'shanvi.db')
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'shanvi-secret-123456')                    # secure random secret key
